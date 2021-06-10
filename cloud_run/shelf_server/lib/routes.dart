@@ -12,18 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:io';
-import 'dart:async';
+import 'package:shelf/shelf.dart';
+import 'package:shelf_router/shelf_router.dart';
 
-import 'package:shelf/shelf_io.dart';
-import 'package:hello/routes.dart' show router;
+final router = Router()
+  ..get('/', _rootHandler);
 
-FutureOr<void> main(List<String> args) async {
-  // Don't use `localhost`, use any available container IP (usually `0.0.0.0`).
-  final ip = InternetAddress.anyIPv4;
-  // Bind to configured PORT set by Cloud Run.
-  final port = int.parse(Platform.environment['PORT'] ?? '8080');
-
-  final server = await serve(router, ip, port);
-  print('Server listening on port ${server.port}');
+Response _rootHandler(Request req) {
+  print('Handling request for /');
+  return Response.ok('Hello, World!');
 }
