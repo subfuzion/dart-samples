@@ -15,15 +15,20 @@
 import 'dart:io';
 import 'dart:async';
 
+import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
 import 'package:hello/routes.dart' show router;
 
-FutureOr<void> main(List<String> args) async {
-  // Don't use `localhost`, use any available container IP (usually `0.0.0.0`).
-  final ip = InternetAddress.anyIPv4;
-  // Bind to configured PORT set by Cloud Run.
-  final port = int.parse(Platform.environment['PORT'] ?? '8080');
+Future<void> main(List<String> args) async {
+  // Server should allow connections from networks outside of the container.
+  var ip = InternetAddress.anyIPv4;
 
-  final server = await serve(router, ip, port);
+  // Server should bind to the PORT configured by Cloud Run.
+  var port = int.parse(Platform.environment['PORT'] ?? '8080');
+
+  // A shelf pipeline daisy chains middleware and handler functions
+  var handlers = Pipeline().addMiddleware(logRequests()).addHandler(router);
+
+  var server = await serve(handlers, ip, port);
   print('Server listening on port ${server.port}');
 }
