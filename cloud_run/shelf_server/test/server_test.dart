@@ -6,59 +6,63 @@ import 'package:test_process/test_process.dart';
 
 void main() {
   // Port value of 0 will cause an available port to be chosen at random.
-  final initPort = '0';
-  late int port;
-  late String uri;
-  late TestProcess _proc;
+  const initPort = '0';
+  late int assignedPort;
+  late String baseUrl;
+  late TestProcess proc;
 
-  group('tests', () {
+  group('test server', () {
     setUp(() async {
-      _proc = await TestProcess.start(
+      proc = await TestProcess.start(
         'dart',
         ['run', 'bin/server.dart'],
         environment: {'PORT': initPort},
       );
 
-      // Matches strings that start with 'Serving' or 'Server' and ends anything
-      // that crudely resembles a port number.
-      final _servingPattern = RegExp(r'^Serv[^\d]+(\d{1,5})$');
-
-      final output = await _proc.stdout.next;
-      final match = _servingPattern.firstMatch(output);
-      // explicit test instead of null operator for exception clarity
-      if (match == null) {
-        throw Exception('Unexpected server output after start: "${output}"');
-      }
-      port = int.parse(match[1]!);
-      uri = 'http://localhost:${port}';
-      print('test server started on port ${port}');
+      var output = await proc.stdout.next;
+      var parts = output.split('Server listening on port ');
+      assignedPort = int.parse(parts[1].trim());
+      baseUrl = 'http://localhost:$assignedPort';
+      print('- test server started on port $assignedPort');
     });
 
     tearDown(() async {
-//      await _proc.kill();
-      print('test server stopped');
+      print('- test server stopped');
     });
 
-    group('server tests', () {
+    group('route', () {
       final defTimeout = Timeout(Duration(seconds: 5));
 
-      test('url root (/)', () async {
-        final response = await get(Uri.parse('${uri}/'));
+      test('/', () async {
+        final response = await get(Uri.parse('$baseUrl/'));
         expect(response.statusCode, 200);
         expect(response.body, 'Hello, World!');
-        await _proc.kill();
+        await proc.kill();
       }, timeout: defTimeout);
 
-      // test('Echo', () async {
-      //   final response = await get(Uri.parse('${uri}/echo/hello'));
-      //   expect(response.statusCode, 200);
-      //   expect(response.body, 'hello');
-      // });
+      test('/echo', () async {
+        final response = await get(Uri.parse('$baseUrl/echo/hello'));
+        expect(response.statusCode, 200);
+        expect(response.body, 'hello');
+        await proc.kill();
+      }, timeout: defTimeout);
+
+      test('/time', () async {
+        final response = await get(Uri.parse('$baseUrl/time'));
+        expect(response.statusCode, 200);
+        var time = DateTime.parse(response.body);
+        var now = DateTime.now();
+        expect(time, predicate<DateTime>((t) => t.difference(now).inSeconds < 1,
+            'Server time ($time) should be within a second of current time ($now)'));
+        await proc.kill();
+      }, timeout: defTimeout);
+
       test('404', () async {
-        final response = await get(Uri.parse('${uri}/foobar'));
+        final response = await get(Uri.parse('$baseUrl/foo'));
         expect(response.statusCode, 404);
-        await _proc.kill();
+        await proc.kill();
       });
+
     });
   });
 }
